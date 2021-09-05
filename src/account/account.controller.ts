@@ -5,7 +5,7 @@ import {
   Get,
   Param,
   Patch,
-  Post,
+  Post, Query,
 } from '@nestjs/common';
 import { AccountService } from './account.service';
 import { Account } from '../interfaces/account';
@@ -16,17 +16,17 @@ export class AccountController {
   constructor(private AddressService: AccountService) {}
 
   @Get()
-  findAll() {
+  findOne(@Query() query) {
+    if (query.address) {
+      return this.AddressService.findOne(query.address, query).then((account) => {
+        return account;
+      });
+    }
+
     return this.AddressService.findAll().then((accounts) => {
       return accounts;
     });
-  }
 
-  @Get(':id')
-  findOne(@Param() params) {
-    return this.AddressService.findOne(params.id).then((account) => {
-      return account;
-    });
   }
   // TODO Need dto
   @Post(':address')

@@ -6,6 +6,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AccountModule } from './account/accountModule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Account } from './entities/account.entity';
+import { Transaction } from './entities/transaction.entity';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { Account } from './entities/account.entity';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE,
-      entities: [Account],
+      entities: [Account, Transaction],
       synchronize: true,
     }),
   ],

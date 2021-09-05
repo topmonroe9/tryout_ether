@@ -34,6 +34,4 @@ export class Transaction {
   @UpdateDateColumn()
   updated_at: Date;
 
-  // @Column({ default: true })
-  // isActive: boolean;
 }
