@@ -1,22 +1,19 @@
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  Index,
-  CreateDateColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, Index, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity()
 export class Transaction {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Index()
   @Column()
   blockNumber: string;
 
   @Column()
   blockHash: string;
+
+  @Column()
+  nonce: string;
 
   @Column()
   hash: string;
@@ -26,17 +23,20 @@ export class Transaction {
   from: string;
 
   @Index()
-  @Column({ nullable: true, type: 'numeric', precision: 20, scale: 18 })
-  value: number;
+  @Column()
+  to: string;
 
   @Index()
+  @Column({ type: 'numeric', precision: 20, scale: 18 })
+  value: number;
+
   @Column()
   confirmations: number;
 
   @Column()
-  timestamp: Date;
+  timeStamp: Date;
 
-  @Column()
+  @Column({ nullable: true })
   isError: number;
 
   @CreateDateColumn()
@@ -44,5 +44,4 @@ export class Transaction {
 
   @UpdateDateColumn()
   updated_at: Date;
-
 }

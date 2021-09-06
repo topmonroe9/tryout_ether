@@ -7,8 +7,9 @@ export class TransactionDto {
   blockHash: string;
   hash: string;
   from: string;
+  to: string;
   value: number;
   confirmations: number;
-  timestamp: Date;
+  timeStamp: Date;
   isError: number;
 }

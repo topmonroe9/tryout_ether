@@ -20,7 +20,7 @@ export class EtherscanApiService {
       .pipe(
         map((axiosResponse: AxiosResponse) => {
           if (axiosResponse.data.status != 1) {
-            console.log(axiosResponse.data);
+            console.error(axiosResponse.data.result);
             return null;
           }
           return axiosResponse.data.result;
@@ -30,15 +30,15 @@ export class EtherscanApiService {
   }
 
   async fetchHistoriesByAddressArray(addresses: string[]) {
-    const promises = []
+    const promises = [] // TODO need  queue or threshold for amount of concurrent request
     for ( const address of addresses) {
       promises.push(
         this.fetchHistoryByAddress(address)
       )
     }
-    const results = await Promise.allSettled(promises)
-    console.log(results)
-    return true
+    return Promise.allSettled(promises).then( data => {
+      return data
+    })
   }
 
   async fetchBalances(accounts: AccountDto[]): Promise<[] | null> {
@@ -54,7 +54,7 @@ export class EtherscanApiService {
       .pipe(
         map((axiosResponse: AxiosResponse) => {
           if (axiosResponse.data.status != 1) {
-            console.log(axiosResponse.data.message);
+            console.error(axiosResponse.data.message);
             return null;
           }
           return axiosResponse.data.result;

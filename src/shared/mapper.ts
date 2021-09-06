@@ -9,16 +9,17 @@ export const toAccountDto = (data: Account): AccountDto => {
 };
 
 export const toTransactionDto = (data: Transaction): TransactionDto => {
-  const { id, blockNumber, blockHash, hash, from, value, confirmations, timestamp, isError } = data;
+  const { id, blockNumber, blockHash, hash, from, to, value, confirmations, timeStamp, isError } = data;
   return {
     id,
     blockNumber,
     blockHash,
     hash,
     from,
+    to,
     value,
     confirmations,
-    timestamp,
+    timeStamp,
     isError
   };
 };
