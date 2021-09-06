@@ -12,21 +12,32 @@ export class Transaction {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Index()
-  @Column({})
-  address: string;
+  @Column()
+  blockNumber: string;
 
   @Column()
-  transactionDate: Date;
+  blockHash: string;
 
-  @Column({ nullable: true, type: 'numeric', precision: 20, scale: 18 })
-  transactionAmount: number;
+  @Column()
+  hash: string;
 
-  @Column({ nullable: true, type: 'numeric', precision: 20, scale: 18 })
-  openingBalance: number;
+  @Index()
+  @Column()
+  from: string;
 
+  @Index()
   @Column({ nullable: true, type: 'numeric', precision: 20, scale: 18 })
-  closingBalance: number;
+  value: number;
+
+  @Index()
+  @Column()
+  confirmations: number;
+
+  @Column()
+  timestamp: Date;
+
+  @Column()
+  isError: number;
 
   @CreateDateColumn()
   created_at: Date;

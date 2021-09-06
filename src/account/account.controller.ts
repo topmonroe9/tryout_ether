@@ -28,7 +28,7 @@ export class AccountController {
     });
 
   }
-  // TODO Need dto
+
   @Post(':address')
   create(@Param() param: CreateAccountDto) {
     console.log(param)

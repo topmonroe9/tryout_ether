@@ -3,9 +3,12 @@ import { Column } from 'typeorm';
 
 export class TransactionDto {
   id: number;
-  address: string;
-  transactionDate: Date;
-  transactionAmount: number;
-  openingBalance: number;
-  closingBalance: number;
+  blockNumber: string;
+  blockHash: string;
+  hash: string;
+  from: string;
+  value: number;
+  confirmations: number;
+  timestamp: Date;
+  isError: number;
 }

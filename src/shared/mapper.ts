@@ -5,19 +5,20 @@ import { TransactionDto } from '../account/dto/transaction.dto';
 
 export const toAccountDto = (data: Account): AccountDto => {
   const { id, address, balance } = data;
-  const accountDto: AccountDto = { id, address, balance };
-  return accountDto;
+  return { id, address, balance };
 };
 
 export const toTransactionDto = (data: Transaction): TransactionDto => {
-  const { id, address, transactionDate, transactionAmount, openingBalance, closingBalance } = data;
-  const transactionDto: TransactionDto = {
+  const { id, blockNumber, blockHash, hash, from, value, confirmations, timestamp, isError } = data;
+  return {
     id,
-    address,
-    transactionDate,
-    transactionAmount,
-    openingBalance,
-    closingBalance,
+    blockNumber,
+    blockHash,
+    hash,
+    from,
+    value,
+    confirmations,
+    timestamp,
+    isError
   };
-  return transactionDto;
 };

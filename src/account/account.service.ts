@@ -12,6 +12,7 @@ import { AccountDto } from './dto/account.dto';
 import { Transaction } from '../entities/transaction.entity';
 import { WSClientService } from './wsClient.service';
 import { TransactionDto } from './dto/transaction.dto';
+import { EtherscanApiService } from './etherscan-api.service';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const Web3 = require('web3');
 
@@ -22,16 +23,21 @@ export class AccountService {
     @InjectRepository(Account) private accountRepository: Repository<Account>,
     @InjectRepository(Transaction) private transactionRepository: Repository<Transaction>,
     @Inject(WSClientService) private wsClientService: WSClientService,
+    @Inject(EtherscanApiService) private etherscanApiService: EtherscanApiService,
   ) {}
 
   @Cron('*/5 * * * * *') // Updating balances every 10 secs
   async updateBalances() {
-    const data = await this.fetchBalances();
+    const accounts = await this.accountRepository.find();
+    const data = await this.etherscanApiService.fetchBalances(accounts);
+    const history = await this.etherscanApiService.fetchHistoriesByAddressArray(accounts.map((a) => a.address));
 
-    if (data === null) {
+    if (!data || !history) {
       console.log('Status 0 returned from etherscan...');
       return;
     }
+
+    // processHistories
 
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore // TODO Fix this crap
@@ -45,6 +51,25 @@ export class AccountService {
     });
 
     await this.writeBalancesToDb(fetchedBalances);
+    await this.writeHistories(history);
+  }
+
+  private async writeHistories(historyArray) {
+    // first start will take quiet some time, get a cup of coffee
+    const allTransactionsInDB = await this.transactionRepository.find()
+    const existingHashes = allTransactionsInDB.map((t) => t.hash);
+
+    for ( const transaction of historyArray ) {
+      console.log(transaction.hash)
+      if (existingHashes.includes(transaction.hash)) {
+        // then record exists in db => skipping
+        continue
+      }
+
+      const newRecord = this.transactionRepository.create()
+      Object.assign(newRecord, transaction);
+      await this.accountRepository.save(newRecord)
+    }
   }
 
   private async writeBalancesToDb(data: AccountDto[]) {
@@ -58,76 +83,28 @@ export class AccountService {
         console.debug('writing balance for new account', fetchedAccount.balance);
         accountFromDb.balance = fetchedAccount.balance;
         await this.accountRepository.save(accountFromDb);
-      } else if (accountFromDb.balance !== fetchedAccount.balance) {
+      }
+      else if (accountFromDb.balance !== fetchedAccount.balance) {
         console.log('balance changed on account', accountFromDb.address);
 
-        // write a transaction
-        const transaction = await this.transactionRepository.create({
-          address: accountFromDb.address,
-          transactionDate: new Date(Date.now()),
-          transactionAmount: Math.abs(accountFromDb.balance - fetchedAccount.balance),
-          openingBalance: accountFromDb.balance,
-          closingBalance: fetchedAccount.balance,
-        });
-        await this.transactionRepository.save(transaction);
+        //fire this function if balance changed
+        this.updateTransactionsByAddress(accountFromDb.address)
+          .then(() => console.log('transactions of address updated'));
 
         // write new balance
         accountFromDb.balance = fetchedAccount.balance;
         await this.accountRepository.save(accountFromDb);
       }
     }
-    // await Promise.allSettled(promises);
-    //
-    // async function processBalances(fetchedAccount) {
-    //   const accountFromDb = await this.accountRepository.findOne({
-    //     address: fetchedAccount.address,
-    //   });
-    //   if (accountFromDb.balance === null) {
-    //     console.debug('writing balance for new account', fetchedAccount.balance);
-    //     accountFromDb.balance = fetchedAccount.balance;
-    //     await this.accountRepository.save(accountFromDb);
-    //   } else if (accountFromDb.balance !== fetchedAccount.balance) {
-    //     console.log('balance changed on account', accountFromDb.address);
-    //
-    //     // write new balance
-    //     accountFromDb.balance = fetchedAccount.balance;
-    //     await this.accountRepository.save(accountFromDb);
-    //
-    //     // write a transaction
-    //     const transaction = await this.transactionRepository.create({
-    //       address: accountFromDb.address,
-    //       transactionDate: new Date(Date.now()),
-    //       transactionAmount: Math.abs(accountFromDb.balance - fetchedAccount.balance),
-    //       openingBalance: accountFromDb.balance,
-    //       closingBalance: fetchedAccount.balance,
-    //     });
-    //     await this.transactionRepository.save(transaction);
-    //   }
-    // }
+
   }
 
-  private async fetchBalances(): Promise<[] | null> {
-    const accounts: AccountDto[] = await this.accountRepository.find();
-    const listOfAddresses: string = accounts
-      .map(function (item) {
-        return item['address'];
-      })
-      .toString();
-    return this.httpService
-      .get(
-        `https://api-ropsten.etherscan.io/api?module=account&action=balancemulti&address=${listOfAddresses}&tag=latest&apikey=${process.env.API_KEY_ETHERSCAN}`,
-      )
-      .pipe(
-        map((axiosResponse: AxiosResponse) => {
-          if (axiosResponse.data.status != 1) {
-            console.log(axiosResponse.data.message);
-            return null;
-          }
-          return axiosResponse.data.result;
-        }),
-      )
-      .toPromise();
+  async updateTransactionsByAddress(address: string) {
+    const history = await this.etherscanApiService.fetchHistoryByAddress(address)
+
+
   }
+
 
   async findAll(): Promise<Account[]> {
     return await this.accountRepository.find();
@@ -162,7 +139,7 @@ export class AccountService {
   }
 
   private getBalanceMedianInTimeFrame( transactions: TransactionDto[] ): number {
-    const arrOfNums = transactions.map( t => t.closingBalance )
+    const arrOfNums = transactions.map( t => t.value )
     return median(arrOfNums)
   }
 
