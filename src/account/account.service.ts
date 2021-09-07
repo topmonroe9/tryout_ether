@@ -3,7 +3,7 @@ import { Account } from '../entities/account.entity';
 import { Cron } from '@nestjs/schedule';
 import { HttpService } from '@nestjs/axios';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, getConnection, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
+import { Between, getConnection, Repository } from 'typeorm';
 import { toAccountDto, toTransactionDto } from '../shared/mapper';
 import { AccountDto } from './dto/account.dto';
 import { Transaction } from '../entities/transaction.entity';
@@ -29,7 +29,9 @@ export class AccountService {
     console.debug('staring updateBalances()');
     const accounts = await this.accountRepository.find();
     const data = await this.etherscanApiService.fetchBalances(accounts);
-    const history = await this.etherscanApiService.fetchHistoriesByAddressArray(accounts.map((a) => a.address));
+    const arrOfAddresses = accounts.map((a) => a.address.toLowerCase());
+    console.log(arrOfAddresses);
+    const history = await this.etherscanApiService.fetchHistoriesByAddressArray(arrOfAddresses);
 
     if (!data || !history) {
       console.log('Status 0 returned from etherscan...');
@@ -117,7 +119,7 @@ export class AccountService {
   }
 
   async updateTransactionsByAddress(address: string) {
-    const history = await this.etherscanApiService.fetchHistoryByAddress(address);
+    const history = await this.etherscanApiService.fetchHistoryByAddress(address.toLowerCase());
   }
 
   async findAll(): Promise<Account[]> {
@@ -125,8 +127,9 @@ export class AccountService {
   }
 
   async findOne(address: string, query): Promise<AccountDto> {
-    const account = await this.accountRepository.findOne({ address: address }).then((account) => {
-      return toAccountDto(account);
+    const account = await this.accountRepository.findOne({ address: address.toLowerCase() }).then((account) => {
+      if (account) return toAccountDto(account);
+      else throw new HttpException('Account not found', 404);
     });
 
     if (query.currency) {
@@ -143,13 +146,13 @@ export class AccountService {
       query.with = query.with.split(',');
       if (query.with.includes('history')) {
         account.transactions = await this.getTransactions(query, address);
-        if (query.start && query.end) account.median = this.getBalanceMedianInTimeFrame(account.transactions);
+        if (query.start && query.end) account.median = AccountService.getBalanceMedianInTimeFrame(account.transactions);
       }
     }
     return account;
   }
 
-  private getBalanceMedianInTimeFrame(transactions: TransactionDto[]): number {
+  private static getBalanceMedianInTimeFrame(transactions: TransactionDto[]): number {
     const arrOfNums = transactions.map((t) => t.value);
     return median(arrOfNums);
   }
@@ -160,63 +163,49 @@ export class AccountService {
 
     if ((isValidDate(start) && isValidDate(end)) || isValidDate(start) || isValidDate(end)) {
       if (query.start && query.end) {
-        return await this.transactionRepository
-          .find({
-            where: {
-              address,
-              transactionDate: Between(start.toISOString(), end.toISOString()),
-            },
-          })
-          .then((transactions) => {
-            return transactions.map((t) => toTransactionDto(t));
-          });
-      } else if (query.start) {
-        return await this.transactionRepository
-          .find({
-            where: {
-              address,
-              transactionDate: MoreThanOrEqual(start.toISOString()),
-            },
-          })
-          .then((transactions) => {
-            return transactions.map((t) => toTransactionDto(t));
-          });
-      } else if (query.end) {
-        console.debug('query end')
         const query = getConnection()
           .createQueryBuilder()
-          // .select('*')
-          .from(Transaction, "t")
-          // .where('"transaction"."timeStamp" <= :endDate', { endDate: end.toISOString() })
-          .where(`t."from" = :address`, { address: 'asdasda' })
-          // .orWhere('"to" = :address', { address })
-          .getSql()
-        console.debug(query)
-        return await getConnection()
+          .select('*')
+          .from(Transaction, 't')
+          .where(`("from" = :address OR "to" = :address)`, { address })
+          .andWhere('("timeStamp" >= :startDate AND "timeStamp" <= :endDate)',
+            { startDate: start.toISOString(), endDate: end.toISOString() })
+
+        console.log(query.getSql());
+        return await query.getRawMany()
+      } else if (query.start) {
+        const query = getConnection()
           .createQueryBuilder()
-          // .select('*')
-          .from(Transaction, "t")
-          // .where('"transaction"."timeStamp" <= :endDate', { endDate: end.toISOString() })
-          .where('t."from" = :address', { address }) //TODO THIS BS DSNT SUBSTITUTE DATA
-          // .orWhere('"to" = :address', { address })
-          .getMany()
-          .then((transactions) => {
-            console.debug(transactions)
-            return transactions.map((t) => toTransactionDto(t));
-          });
-        return await this.transactionRepository
-          .find({
-            where: {
-              address,
-              transactionDate: LessThanOrEqual(end.toISOString()),
-            },
-          })
-          .then((transactions) => {
-            return transactions.map((t) => toTransactionDto(t));
-          });
+          .select('*')
+          .from(Transaction, 't')
+          .where(`("from" = :address OR "to" = :address)`, { address })
+          .andWhere('"timeStamp" >= :startDate', { startDate: start.toISOString() })
+
+        console.log(query.getSql());
+        return await query.getRawMany()
+      } else if (query.end) {
+        const query = getConnection()
+          .createQueryBuilder()
+          .select('*')
+          .from(Transaction, 't')
+          .where(`("from" = :address OR "to" = :address)`, { address })
+          .andWhere('"timeStamp" <= :endDate', { endDate: end.toISOString() })
+        console.log(query.getSql());
+        return await query.getRawMany()
+
+        // return await this.transactionRepository
+        //   .find({
+        //     where: {
+        //       address,
+        //       transactionDate: LessThanOrEqual(end.toISOString()),
+        //     },
+        //   })
+        //   .then((transactions) => {
+        //     return transactions.map((t) => toTransactionDto(t));
+        //   });
       }
     } else {
-      console.debug('sending without date frames')
+      console.debug('sending without date frames');
       return await this.transactionRepository.find({
         where: [{ from: address }, { to: address }],
       });
@@ -227,7 +216,7 @@ export class AccountService {
     const userInDb = await this.accountRepository.findOne({ address });
     if (userInDb) throw new HttpException('This address already exists and being tracked.', HttpStatus.BAD_REQUEST);
 
-    const account: Account = await this.accountRepository.create({ address });
+    const account: Account = this.accountRepository.create({ address: address.toLowerCase() });
     await this.accountRepository.save(account);
     return toAccountDto(account);
   }
